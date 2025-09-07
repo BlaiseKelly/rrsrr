@@ -28,7 +28,7 @@ osm <- readRDS("Manchester.RDS")
 
 
 
-#
+# apply osm active functions
 cycle_net = get_cycling_network(osm)
 drive_net = get_driving_network(osm)
 cycle_net_d = distance_to_road(cycle_net, drive_net)
@@ -51,15 +51,23 @@ cas_sf <- ca_cra |>
   st_as_sf(coords = c("location_easting_osgr", "location_northing_osgr"), crs = 27700) |>
   st_transform(4326)
 
-download.file("https://assets.publishing.service.gov.uk/media/5a74e12940f0b65c0e845386/Greater_Manchester_LEP.zip", destfile = "Greater_Manchester_LEP.zip")
+dir.create("data/")
+
+# download shape of greater manchester
+download.file("https://assets.publishing.service.gov.uk/media/5a74e12940f0b65c0e845386/Greater_Manchester_LEP.zip", destfile = "data/Greater_Manchester_LEP.zip")
+
+# unzip thhe downloaded file
+unzip("data/Greater_Manchester_LEP.zip",exdir = "data")
 
 # import shapefile
-manc_shp <- st_read("Greater_Manchester_LEP.shp") |>
+manc_shp <- st_read("data/Greater_Manchester_LEP.shp") |>
   st_transform(4326) |>
   st_union()
 
 # trim to GM boundary
 cycle_net_c <- st_intersection(cycle_net_c,manc_shp)
+
+dir.create("plots/")
 
 # plot map of cycle routes as determined by osmactive
 tm_1 <-
@@ -69,7 +77,7 @@ tm_1 <-
   tm_lines("detailed_segregation",lwd = 2, title = "type of cycle path")+
   tm_layout(frame = FALSE)
 
-tmap_save(tm_1, "cycle_routes.png")
+tmap_save(tm_1, "plots/cycle_routes.png")
 
 
 # create h3
@@ -98,7 +106,7 @@ tm_1 <-
   tm_polygons(alpha = 0, lwd = 1)+
   tm_layout(frame = FALSE)
 tm_1
-tmap_save(tm_1, "hex_sf.png")
+tmap_save(tm_1, "plots/hex_sf.png")
 
 
 tm_1 <-
@@ -110,7 +118,7 @@ tm_1 <-
   tm_polygons(alpha = 0, lwd = 1)+
   tm_layout(frame = FALSE)
 tm_1
-tmap_save(tm_1, "cycle_hex.png")
+tmap_save(tm_1, "plots/cycle_hex.png")
 
 # trim casualties to manchester shp
 cas_sf <- cas_sf[manc_shp,]
@@ -128,79 +136,60 @@ cas_sf_c_14_19 <- filter(cas_sf_cyclist, accident_year >= 2014 & accident_year <
 
 cas_sf_c_GT_19 <- filter(cas_sf_cyclist, accident_year >= 2019)
 
-# loop through each hexegon and su up the number of casualties
-hex_list <- list()
-for (h in hex_cycling$h3_index){
 
-  df <- filter(hex_cycling, h3_index == h)
+hex_cycling_sf <- hex_cycling |> st_as_sf()
 
-  df$p1 <- sum(cas_sf_c_14_19[df,]$number_of_casualties,na.rm = TRUE)
+hex_cycling_sf_intersects_p1 <- st_intersects(hex_cycling_sf,cas_sf_c_14_19)
+hex_cycling_sf_intersects_p2 <- st_intersects(hex_cycling_sf,cas_sf_c_GT_19)
 
-  df$p2 <- sum(cas_sf_c_GT_19[df,]$number_of_casualties)
+hex_cycling_sf$p1 <- vapply(hex_cycling_sf_intersects_p1,length,numeric(1))
+hex_cycling_sf$p2 <- vapply(hex_cycling_sf_intersects_p2,length,numeric(1))
 
-  hex_list[[h]] <- df
+hex_no_cycling_sf <- hex_no_cycling |> st_as_sf()
 
-  print(h)
-}
+hex_no_cycling_sf_intersects_p1 <- st_intersects(hex_no_cycling_sf,cas_sf_c_14_19)
+hex_no_cycling_sf_intersects_p2 <- st_intersects(hex_no_cycling_sf,cas_sf_c_GT_19)
 
-all_hex <- do.call(rbind,hex_list)
+hex_no_cycling_sf$p1 <- vapply(hex_no_cycling_sf_intersects_p1,length,numeric(1))
+hex_no_cycling_sf$p2 <- vapply(hex_no_cycling_sf_intersects_p2,length,numeric(1))
 
-all_hex$diff <- all_hex$p2-all_hex$p1
+hex_cycling_sf$diff <- hex_cycling_sf$p2-hex_cycling_sf$p1
 
-
-# same for other group
-hex_list <- list()
-for (h in hex_no_cycling$h3_index){
-
-  df <- filter(hex_no_cycling, h3_index == h)
-
-  df$p1 <- sum(cas_sf_c_14_19[df,]$number_of_casualties,na.rm = TRUE)
-
-  df$p2 <- sum(cas_sf_c_GT_19[df,]$number_of_casualties)
-
-
-  hex_list[[h]] <- df
-
-  print(h)
-}
-
-all_hex_no <- do.call(rbind,hex_list)
-
-all_hex_no$diff <- all_hex_no$p2-all_hex_no$p1
+hex_no_cycling_sf$diff <- hex_no_cycling_sf$p2-hex_no_cycling_sf$p1
 
 # what is average change for each region
-mean_diff_no_cycle_infra <- mean(all_hex_no$diff)
-mean_diff_cycle_infra <- mean(all_hex$diff)
+mean_diff_no_cycle_infra <- mean(hex_no_cycling_sf$diff)
+mean_diff_cycle_infra <- mean(hex_cycling_sf$diff)
 
 # final plots
 bks <- seq(-10,15,by = 2)
 
 tm_1 <-
-tm_shape(all_hex_no)+
+tm_shape(hex_no_cycling_sf)+
   tm_polygons("diff", breaks = bks, lwd = 0.5, title = "difference in total casualties")+
-tm_shape(all_hex)+
+tm_shape(hex_cycling_sf)+
   tm_polygons("diff", breaks = bks, legend.show = FALSE, lwd = 1.5)+
   tm_layout(frame = FALSE)
 
-tmap_save(tm_1, "diff.png")
+tmap_save(tm_1, "plots/diff.png")
 
 bks <- seq(0,16,by = 2)
 
 tm_1 <-
-  tm_shape(all_hex_no)+
+  tm_shape(hex_no_cycling_sf)+
   tm_polygons("p1", breaks = bks, lwd = 0.5, title = "total casualties 2014-2018")+
-  tm_shape(all_hex)+
+  tm_shape(hex_cycling_sf)+
   tm_polygons("p1", breaks = bks, legend.show = FALSE, lwd = 1.5)+
   tm_layout(frame = FALSE)
 
-tmap_save(tm_1, "tot_p1.png")
+tmap_save(tm_1, "plots/tot_p1.png")
 
 tm_1 <-
-  tm_shape(all_hex_no)+
+  tm_shape(hex_no_cycling_sf)+
   tm_polygons("p2", breaks = bks, lwd = 0.5, title = "total casualties 2019-2023")+
-  tm_shape(all_hex)+
+  tm_shape(hex_cycling_sf)+
   tm_polygons("p2", breaks = bks, legend.show = FALSE, lwd = 1.5)+
   tm_layout(frame = FALSE)
 
-tmap_save(tm_1, "tot_p2.png")
+tmap_save(tm_1, "plots/tot_p2.png")
 
