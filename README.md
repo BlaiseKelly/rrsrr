@@ -15,7 +15,7 @@ The osm street network for Manchester was imported and functions from
 osmactive applied creating a column called ‘detailed segregation’, which
 defines the type of cycle path present, shown below.
 
-![](cycle_routes.png)
+![](plots/cycle_routes.png)
 
 From studying this map and matching with local knowledge it appears that
 the new infrastructure mostly falls under the category ‘Level track’ and
@@ -27,26 +27,26 @@ as many parts of the network were only finished in recent yers.
 
 In attempt to summarise the data H3 syste was used.
 
-![](hex_sf.png)
+![](plots/hex_sf.png)
 
 Hexegons with the cycle infrastructure ‘Level track’ and ‘Light
 segregation’ were seperated from the rest of the region.
 
-![](cycle_hex.png)
+![](plots/cycle_hex.png)
 
 The total casualties for each hexegon for the whole region were
 calculated for the two periods. Period 1 2014-2018
 
-![](tot_p1.png)
+![](plots/tot_p1.png)
 
 and period 2 2019-2023. The hexegons estimated to have the recent cycle
 infrastructure are outlined with a thicker line.
 
-![](tot_p2.png)
+![](plots/tot_p2.png)
 
 Subtracting p1 from p2 gives the difference for the two periods
 
-![](diff.png)
+![](plots/diff.png)
 
 On average the hexegons with ‘Level track’ annd ‘Light segregation’ have
 had a reduction of 0.3 casualties and areas without 0.1 casualty
